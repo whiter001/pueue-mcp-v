@@ -4,6 +4,8 @@
 
 This repository is a **V language** implementation of the original [pueue-mcp](https://github.com/whiter001/pueue-mcp) project.
 
+This project provides MCP (Model Context Protocol) tools for managing [Pueue](https://github.com/Nukesor/pueue) - a command-line tool for managing long-running shell commands with queues, groups, and dependencies.
+
 The API signatures in
 `pueue.v` and `mcp.v` are deliberately similar to the Go sources for easier
 comparison.
@@ -249,6 +251,8 @@ The server will read MCP requests from stdin and write responses to stdout. The 
 [中文说明](README_zh.md)
 
 This repository is a **V language** implementation of the original [pueue-mcp](https://github.com/whiter001/pueue-mcp) project.
+
+This project provides MCP (Model Context Protocol) tools for managing [Pueue](https://github.com/Nukesor/pueue) - a command-line tool for managing long-running shell commands with queues, groups, and dependencies.
 
 The API signatures in
 `pueue.v` and `mcp.v` are deliberately similar to the Go sources for easier

@@ -2,6 +2,8 @@
 
 这个仓库是原版 [pueue-mcp](https://github.com/whiter001/pueue-mcp) 项目的 **V 语言** 实现。
 
+本项目为 [Pueue](https://github.com/Nukesor/pueue) 提供 MCP（Model Context Protocol）工具支持。Pueue 是一个命令行工具，用于管理带有队列、组和依赖关系的长期运行的 shell 命令。
+
 Go 语言的参考代码位于 `../pueue-mcp`（在当前工作区之外）；本项目使用 V 语言复刻了其功能。
 
 ## 项目结构
