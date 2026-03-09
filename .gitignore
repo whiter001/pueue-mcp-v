@@ -1,0 +1,16 @@
+# Binaries
+pueue-mcp
+pueue-mcp.exe
+
+# V cache and build artifacts
+v.out
+*.vtmp
+
+# IDE/workspace
+.vscode/
+
+# macOS
+.DS_Store
+
+# logs
+*.log
