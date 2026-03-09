@@ -1,16 +1,16 @@
 {
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "vlang.v",
+  "editor.defaultFormatter": "oxc.oxc-vscode",
   "[v]": {
     "editor.defaultFormatter": "vlang.v",
     "editor.formatOnSave": true
   },
   "[markdown]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.defaultFormatter": "oxc.oxc-vscode",
     "editor.formatOnSave": true
   },
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.defaultFormatter": "oxc.oxc-vscode",
     "editor.formatOnSave": true
   },
   "files.associations": {
