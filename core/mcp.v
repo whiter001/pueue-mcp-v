@@ -20,6 +20,10 @@ struct CallReqInt { jsonrpc string method string id int    params CallToolParams
 struct ListReqStr { jsonrpc string method string id string }
 struct ListReqInt { jsonrpc string method string id int }
 
+struct SetLevelParams { level string }
+struct SetLevelReqStr { jsonrpc string method string id string params SetLevelParams }
+struct SetLevelReqInt { jsonrpc string method string id int    params SetLevelParams }
+
 // -- JSON-RPC Response --
 pub struct JsonRpcResponse[T] {
     jsonrpc string = '2.0'
@@ -151,6 +155,8 @@ struct ToolPropertyItems {
 
 pub struct PueueMCPServer {
     client core.PueueClient
+mut:
+    log_level string = 'info'
 }
 
 pub fn new_pueue_mcp_server(client core.PueueClient) PueueMCPServer {
@@ -192,11 +198,13 @@ fn (mut s PueueMCPServer) dispatch(method string, json_str string) string {
              if req := json.decode(CallReqInt, json_str) { return s.process_call_tool(req.params, RpcId(req.id)) }
         }
         'notifications/initialized' { return '' }
+        'logging/setLevel' {
+            if req := json.decode(SetLevelReqStr, json_str) { return s.process_set_level(req.params, RpcId(req.id)) }
+            if req := json.decode(SetLevelReqInt, json_str) { return s.process_set_level(req.params, RpcId(req.id)) }
+        }
         else {
              // Try to extract ID for error response
-             mut eid := ?RpcId(none)
-             if req_s := json.decode(struct{id string}, json_str) { eid = RpcId(req_s.id) }
-             else if req_i := json.decode(struct{id int}, json_str) { eid = RpcId(req_i.id) }
+             eid := extract_rpc_id(json_str)
              return s.error_response(eid, -32601, 'Method not found: $method')
         }
     }
@@ -206,10 +214,32 @@ fn (mut s PueueMCPServer) dispatch(method string, json_str string) string {
 fn (s PueueMCPServer) process_initialize(params InitializeParams, id RpcId) string {
     res := InitializeResult{
         protocol_version: '2024-11-05'
-        capabilities: ServerCapabilities{ tools: {'listChanged': 'true'} }
+        capabilities: ServerCapabilities{
+            logging: {'setLevel': 'true'}
+            tools: {'listChanged': 'true'}
+        }
         server_info: ServerInfo{ name: 'pueue-mcp-v', version: '0.1.0' }
     }
     return json.encode(JsonRpcResponse[InitializeResult]{ id: id, result: res })
+}
+
+fn (mut s PueueMCPServer) process_set_level(params SetLevelParams, id RpcId) string {
+    level := params.level.trim_space().to_lower()
+    allowed_levels := ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency']
+    if level == '' {
+        return s.error_response(id, -32602, 'Invalid params: level is required')
+    }
+    if level !in allowed_levels {
+        return s.error_response(id, -32602, 'Invalid params: unsupported log level "$params.level"')
+    }
+
+    s.log_level = level
+    return json.encode(JsonRpcResponse[map[string]string]{
+        id: id
+        result: {
+            'level': s.log_level
+        }
+    })
 }
 
 fn (s PueueMCPServer) process_list_tools(id RpcId) string {
@@ -627,4 +657,14 @@ fn (s PueueMCPServer) error_response(id ?RpcId, code int, msg string) string {
         id: id
         err: JsonRpcError{code: code, message: msg}
     })
+}
+
+fn extract_rpc_id(json_str string) ?RpcId {
+    if req_s := json.decode(struct { id string }, json_str) {
+        return RpcId(req_s.id)
+    }
+    if req_i := json.decode(struct { id int }, json_str) {
+        return RpcId(req_i.id)
+    }
+    return none
 }

@@ -88,6 +88,29 @@ def test_list_tools():
         print(f"Output: {output}")
         sys.exit(1)
 
+def test_logging_set_level():
+    print("Testing logging/setLevel...")
+    req = {
+        "jsonrpc": "2.0",
+        "id": "log-1",
+        "method": "logging/setLevel",
+        "params": {
+            "level": "info"
+        }
+    }
+    output = run_mcp_request(req)
+    try:
+        resp = json.loads(output)
+        assert resp['jsonrpc'] == '2.0'
+        assert resp['id'] == 'log-1'
+        assert 'result' in resp
+        assert resp['result']['level'] == 'info'
+        print("PASS: logging/setLevel")
+    except Exception as e:
+        print(f"FAIL: logging/setLevel - {e}")
+        print(f"Output: {output}")
+        sys.exit(1)
+
 def test_call_pueue_status():
     print("Testing tools/call (pueue_status)...")
     req = {
@@ -1080,6 +1103,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     test_initialize()
+    test_logging_set_level()
     test_list_tools()
     test_list_all_tools()
     test_call_pueue_status()
