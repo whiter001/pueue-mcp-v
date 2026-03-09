@@ -1,0 +1,13 @@
+{
+  "name": "pueue-mcp-v",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:real": "bun test tests/pueue-mcp.real.test.ts",
+    "test:real:watch": "bun test --watch tests/pueue-mcp.real.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "bun-types": "^1.3.10"
+  }
+}

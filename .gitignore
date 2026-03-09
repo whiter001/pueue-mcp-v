@@ -6,6 +6,10 @@ pueue-mcp.exe
 v.out
 *.vtmp
 
+# Node.js dependencies
+node_modules/
+package-lock.json
+
 # IDE/workspace
 .vscode/
 

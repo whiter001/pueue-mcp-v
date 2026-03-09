@@ -2,7 +2,7 @@ module core
 
 import os
 import time
-import json
+import x.json2
 
 pub enum TaskStatus {
     queued
@@ -35,6 +35,11 @@ pub struct GroupInfo {
 pub struct StatusResponse {
     tasks  map[string]Task
     groups map[string]GroupInfo
+}
+
+struct ParsedTaskState {
+    status    TaskStatus
+    exit_code ?int
 }
 
 pub struct AddOptions {
@@ -204,8 +209,99 @@ pub fn (c CLIClient) add_with_args(command string, cmd_args []string, opts AddOp
 
 pub fn (c CLIClient) status() !StatusResponse {
     output := c.run(['status', '--json'])!
-    resp := json.decode(StatusResponse, output)!
-    return resp
+    return parse_status_response(output)
+}
+
+fn parse_status_response(output string) !StatusResponse {
+    raw := json2.decode[json2.Any](output)!
+    root := raw.as_map()
+
+    mut groups := map[string]GroupInfo{}
+    mut tasks := map[string]Task{}
+
+    if 'groups' in root {
+        groups_map := (root['groups'] or { json2.Any(map[string]json2.Any{}) }).as_map()
+        for group_name, group_value in groups_map {
+            group_data := group_value.as_map()
+            groups[group_name] = GroupInfo{
+                status: get_map_string(group_data, 'status')
+                parallel_tasks: get_map_int(group_data, 'parallel_tasks')
+            }
+        }
+    }
+
+    if 'tasks' in root {
+        tasks_map := (root['tasks'] or { json2.Any(map[string]json2.Any{}) }).as_map()
+        for task_key, task_value in tasks_map {
+            task_data := task_value.as_map()
+            parsed_state := if 'status' in task_data {
+                parse_task_state(task_data['status'] or { json2.Any(map[string]json2.Any{}) })
+            } else {
+                ParsedTaskState{status: .queued}
+            }
+
+            tasks[task_key] = Task{
+                id: get_map_int(task_data, 'id')
+                command: get_map_string(task_data, 'command')
+                path: get_map_string(task_data, 'path')
+                status: parsed_state.status
+                label: get_map_string(task_data, 'label')
+                group: get_map_string(task_data, 'group')
+                exit_code: parsed_state.exit_code
+            }
+        }
+    }
+
+    return StatusResponse{
+        tasks: tasks
+        groups: groups
+    }
+}
+
+fn parse_task_state(status_value json2.Any) ParsedTaskState {
+    status_map := status_value.as_map()
+
+    if 'Queued' in status_map || 'Locked' in status_map {
+        return ParsedTaskState{status: .queued}
+    }
+    if 'Stashed' in status_map {
+        return ParsedTaskState{status: .stashed}
+    }
+    if 'Running' in status_map {
+        return ParsedTaskState{status: .running}
+    }
+    if 'Paused' in status_map {
+        return ParsedTaskState{status: .paused}
+    }
+    if 'Done' in status_map {
+        done_map := (status_map['Done'] or { json2.Any(map[string]json2.Any{}) }).as_map()
+        if 'result' in done_map {
+            result_map := (done_map['result'] or { json2.Any(map[string]json2.Any{}) }).as_map()
+            if 'Success' in result_map {
+                return ParsedTaskState{status: .success}
+            }
+            if 'Failed' in result_map {
+                return ParsedTaskState{
+                    status: .failed
+                    exit_code: get_map_int(result_map, 'Failed')
+                }
+            }
+            if 'Killed' in result_map {
+                return ParsedTaskState{status: .killed}
+            }
+        }
+        return ParsedTaskState{status: .success}
+    }
+
+    return ParsedTaskState{status: .queued}
+}
+
+fn get_map_string(data map[string]json2.Any, key string) string {
+    return (data[key] or { json2.Any('') }).str()
+}
+
+fn get_map_int(data map[string]json2.Any, key string) int {
+    return (data[key] or { json2.Any(0) }).int()
 }
 
 pub fn (c CLIClient) log(opts LogOptions) !string {

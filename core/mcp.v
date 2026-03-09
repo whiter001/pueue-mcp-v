@@ -262,13 +262,13 @@ fn (s PueueMCPServer) process_list_tools(id RpcId) string {
         },
         Tool{
             name: 'pueue_add'
-            description: 'Enqueue a command to be executed. Support advanced DELAY formats like "today 18:30", "+10 minutes", "monday", "3h".'
+            description: 'Enqueue a command to be executed. Support advanced DELAY formats like "today 18:30", "monday", "3h". Use relative time like "+60" for 60 seconds from now.'
             input_schema: ToolInputSchema{
                 properties: {
                     'command': ToolProperty{typ: 'string', description: 'The command to execute'}
                     'label':   ToolProperty{typ: 'string', description: 'Label for the task'}
                     'group':   ToolProperty{typ: 'string', description: 'Group to run the task in'}
-                    'delay':   ToolProperty{typ: 'string', description: 'Delay execution. Format examples: "2024-12-31T23:59:59", "18:00", "5pm", "3h", "10min", "tomorrow", "wednesday 10:30pm"'}
+                    'delay':   ToolProperty{typ: 'string', description: 'Delay execution. Format examples: "2024-12-31T23:59:59", "18:00", "5pm", "3h", "10min", "tomorrow", "wednesday 10:30pm", "+60" (seconds)'}
                     'working_directory': ToolProperty{typ: 'string', description: 'Specify current working directory'}
                     'immediate': ToolProperty{typ: 'boolean', description: 'Immediately start the task'}
                     'stashed':   ToolProperty{typ: 'boolean', description: 'Create the task in Stashed state (queued but not running)'}
