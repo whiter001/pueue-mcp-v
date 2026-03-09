@@ -61,6 +61,8 @@ pub:
 }
 
 pub interface PueueClient {
+    start_daemon() !string
+    is_daemon_running() bool
     add(command string, opts AddOptions) !string
     add_with_args(command string, args []string, opts AddOptions) !string
     status() !StatusResponse
@@ -113,9 +115,35 @@ pub fn (c CLIClient) run(args []string) !string {
     // println('Executing: $full_cmd') // Debug
     res := os.execute(full_cmd)
     if res.exit_code != 0 {
+        // Check if it's a daemon connection error
+        output_lower := res.output.to_lower()
+        if output_lower.contains('could not connect') || output_lower.contains('daemon') {
+            return error('${res.output}\n\n💡 Hint: The Pueue daemon is not running.\n   To start it, run: `pueued -d`\n   Or use the MCP tool: `pueue_start_daemon`')
+        }
         return error('command failed: $res.output')
     }
     return res.output
+}
+
+// Check if the daemon is currently running
+pub fn (c CLIClient) is_daemon_running() bool {
+    res := os.execute('${c.pueue_path} status')
+    return res.exit_code == 0
+}
+
+pub fn (c CLIClient) start_daemon() !string {
+    // Check if daemon is already running
+    check_res := os.execute('${c.pueue_path} status')
+    if check_res.exit_code == 0 {
+        return 'Daemon is already running'
+    }
+    
+    // Start the daemon with pueued -d
+    res := os.execute('pueued -d')
+    if res.exit_code != 0 {
+        return error('Failed to start daemon: $res.output')
+    }
+    return 'Daemon started successfully'
 }
 
 fn build_add_args(command string, opts AddOptions) []string {

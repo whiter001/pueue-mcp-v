@@ -223,6 +223,14 @@ fn (s PueueMCPServer) process_list_tools(id RpcId) string {
             }
         },
         Tool{
+            name: 'pueue_start_daemon'
+            description: 'Start the Pueue daemon if it is not running. This is useful when the daemon is not automatically started.'
+            input_schema: ToolInputSchema{
+                properties: map[string]ToolProperty{}
+                required: []string{}
+            }
+        },
+        Tool{
             name: 'pueue_add'
             description: 'Enqueue a command to be executed. Support advanced DELAY formats like "today 18:30", "+10 minutes", "monday", "3h".'
             input_schema: ToolInputSchema{
@@ -469,6 +477,10 @@ fn (s PueueMCPServer) process_call_tool(params CallToolParams, id RpcId) string 
     match params.name {
         'pueue_status' {
             if resp := s.client.status() { output = s.format_status(resp) } 
+            else { err_msg = err.msg() }
+        }
+        'pueue_start_daemon' {
+            if res := s.client.start_daemon() { output = res }
             else { err_msg = err.msg() }
         }
         'pueue_add' {
