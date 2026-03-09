@@ -93,6 +93,15 @@ bun run test:real
 ### 任务管理
 
 - **`pueue_add`**: 提交并排队执行新命令。
+  - 参数：`command`（必需）、`label`、`group`、`delay`、`working_directory`、`immediate`、`stashed`、`priority`、`after`、`raw_args`
+  - **延时/定时执行**：使用 `delay` 参数可以调度任务在稍后执行。
+    - **相对时间**：`"3h"`（3 小时）、`"10min"`（10 分钟）、`"+60"`（60 秒后）
+    - **绝对时间**：`"2024-12-31T23:59:59"`、`"18:00"`、`"5pm"`
+    - **基于日期**：`"tomorrow"`（明天）、`"monday"`（周一）、`"wednesday 10:30pm"`（周三晚上 10:30）、`"next friday"`（下周五）
+  - **顺序执行**：使用 `after` 参数指定前置任务 ID，实现任务依赖
+- **`pueue_enqueue`**: 将暂存的任务加入队列，或为其设置/更新延时定时器。
+  - 参数：`ids`、`all`、`group`、`delay`
+  - 用于为已暂存的任务添加延时
 - **`pueue_remove`**: 从队列中移除任务。
 - **`pueue_restart`**: 重新启动已完成或失败的任务。
 - **`pueue_kill`**: 强制停止正在运行的任务。
@@ -135,10 +144,95 @@ Claude Desktop 配置示例 (`claude_desktop_config.json`)：
 
 连接后，您可以要求 Claude：
 
-- “查看当前的 pueue 状态”
-- “帮我后台执行 `v build` 命令，并打上 `build` 标签”
-- “查看任务 ID 为 5 的最后 20 行日志”
-- “清理所有成功的 pueue 任务”
+- "查看当前的 pueue 状态"
+- "帮我后台执行 `v build` 命令，并打上 `build` 标签"
+- "查看任务 ID 为 5 的最后 20 行日志"
+- "清理所有成功的 pueue 任务"
+- "安排一个备份脚本在明天凌晨 2 点运行"
+- "在另一个任务完成后执行某个任务"
+
+## 定时与延时任务
+
+`pueue_add` 和 `pueue_enqueue` 工具通过 `delay` 参数支持灵活的调度功能：
+
+### 延时格式示例
+
+| 格式 | 示例 | 说明 |
+|------|------|------|
+| 相对时间 | `"3h"`, `"10min"`, `"+60"` | 3 小时后、10 分钟后、60 秒后执行 |
+| 绝对时间 | `"2024-12-31T23:59:59"`, `"18:00"`, `"5pm"` | 在指定时间执行 |
+| 基于日期 | `"tomorrow"`, `"monday"`, `"next friday"` | 在指定日期执行 |
+| 组合 | `"wednesday 10:30pm"`, `"tomorrow 14:00"` | 在指定日期的指定时间执行 |
+
+### 使用示例
+
+```json
+// 安排任务在 3 小时后运行
+{"command": "pueue_add", "arguments": {"command": "backup.sh", "delay": "3h"}}
+
+// 安排任务在今晚 8 点运行
+{"command": "pueue_add", "arguments": {"command": "report.py", "delay": "8pm"}}
+
+// 安排任务在下周一上午 9 点运行
+{"command": "pueue_add", "arguments": {"command": "weekly-sync.sh", "delay": "monday 9am"}}
+
+// 为已暂存的任务添加延时
+{"command": "pueue_enqueue", "arguments": {"ids": [5, 6], "delay": "2h"}}
+```
+
+## 顺序任务与并行任务
+
+### 顺序任务执行（依赖关系）
+
+使用 `pueue_add` 的 `after` 参数创建任务依赖——任务只会在指定任务完成后才开始执行：
+
+```json
+// 仅在任务 A（ID 为 1）完成后运行任务 B
+{"command": "pueue_add", "arguments": {"command": "step2.sh", "after": [1]}}
+
+// 创建流水线：build → test → deploy
+{"command": "pueue_add", "arguments": {"command": "build.sh", "label": "build"}}
+// 构建完成后（ID 为 2），运行测试
+{"command": "pueue_add", "arguments": {"command": "test.sh", "after": [2]}}
+// 测试完成后（ID 为 3），运行部署
+{"command": "pueue_add", "arguments": {"command": "deploy.sh", "after": [3]}}
+```
+
+### 并行任务执行
+
+控制组内同时运行多少个任务：
+
+```json
+// 创建一个有 4 个并行槽位的组
+{"command": "pueue_group_add", "arguments": {"name": "workers", "parallel": 4}}
+
+// 或更改现有组的并行槽位数
+{"command": "pueue_parallel", "arguments": {"group": "workers", "parallel": 8}}
+
+// 向组中添加任务 - 最多 4 个任务会并发运行
+{"command": "pueue_add", "arguments": {"command": "job1.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job2.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job3.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job4.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job5.sh", "group": "workers"}}
+// job5 会等待直到 job1-4 中的一个完成
+```
+
+### 综合示例：顺序 + 并行
+
+```json
+// 步骤 1: 创建一个有 2 个并行槽位的 build 组
+{"command": "pueue_group_add", "arguments": {"name": "build", "parallel": 2}}
+
+// 步骤 2: 添加并行构建任务
+{"command": "pueue_add", "arguments": {"command": "build-module-a.sh", "group": "build", "label": "build-a"}}
+{"command": "pueue_add", "arguments": {"command": "build-module-b.sh", "group": "build", "label": "build-b"}}
+{"command": "pueue_add", "arguments": {"command": "build-module-c.sh", "group": "build", "label": "build-c"}}
+// build-a 和 build-b 并行运行，build-c 等待
+
+// 步骤 3: 在所有构建完成后部署（ID 为 10, 11, 12）
+{"command": "pueue_add", "arguments": {"command": "deploy.sh", "after": [10, 11, 12], "label": "deploy"}}
+```
 
 > 当有更完整的实现可用时，可以随意替换它。
 

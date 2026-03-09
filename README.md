@@ -16,6 +16,14 @@ The following Pueue functionalities are exposed as MCP tools:
 
 - **`pueue_add`**: Enqueue a command to be executed.
   - Parameters: `command` (required), `label`, `group`, `delay`, `working_directory`, `immediate`, `stashed`, `priority`, `after`, `raw_args`
+  - **Delayed/Scheduled Execution**: Use the `delay` parameter to schedule tasks for later execution.
+    - **Relative time**: `"3h"` (3 hours), `"10min"` (10 minutes), `"+60"` (60 seconds from now)
+    - **Absolute time**: `"2024-12-31T23:59:59"`, `"18:00"`, `"5pm"`
+    - **Day-based**: `"tomorrow"`, `"monday"`, `"wednesday 10:30pm"`, `"next friday"`
+  - **Sequential Execution**: Use the `after` parameter to specify prerequisite task IDs for task dependencies
+- **`pueue_enqueue`**: Enqueue stashed tasks or set/update a delay timer for them.
+  - Parameters: `ids`, `all`, `group`, `delay`
+  - Use this to add a delay to already stashed tasks
 - **`pueue_remove`**: Remove tasks from the queue.
 - **`pueue_restart`**: Restart failed or successful tasks.
 - **`pueue_kill`**: Kill running tasks.
@@ -62,6 +70,91 @@ Once connected, you can ask Claude to:
 - "Run `npm install` in the background with label 'install'"
 - "Show the last 20 lines of log for task 5"
 - "Clean all successful tasks"
+- "Schedule a backup script to run at 2am tomorrow"
+- "Run a task after another task completes"
+
+## Scheduled & Delayed Tasks
+
+The `pueue_add` and `pueue_enqueue` tools support flexible scheduling via the `delay` parameter:
+
+### Delay Format Examples
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| Relative | `"3h"`, `"10min"`, `"+60"` | Execute after 3 hours, 10 minutes, or 60 seconds |
+| Absolute | `"2024-12-31T23:59:59"`, `"18:00"`, `"5pm"` | Execute at a specific time |
+| Day-based | `"tomorrow"`, `"monday"`, `"next friday"` | Execute on a specific day |
+| Combined | `"wednesday 10:30pm"`, `"tomorrow 14:00"` | Execute on a specific day at a specific time |
+
+### Usage Examples
+
+```json
+// Schedule a task to run in 3 hours
+{"command": "pueue_add", "arguments": {"command": "backup.sh", "delay": "3h"}}
+
+// Schedule a task for tonight at 8pm
+{"command": "pueue_add", "arguments": {"command": "report.py", "delay": "8pm"}}
+
+// Schedule a task for next Monday morning
+{"command": "pueue_add", "arguments": {"command": "weekly-sync.sh", "delay": "monday 9am"}}
+
+// Add a delay to already stashed tasks
+{"command": "pueue_enqueue", "arguments": {"ids": [5, 6], "delay": "2h"}}
+```
+
+## Sequential & Parallel Tasks
+
+### Sequential Task Execution (Dependencies)
+
+Use the `after` parameter in `pueue_add` to create task dependencies - a task will only start after specified tasks complete:
+
+```json
+// Run task B only after task A (ID 1) completes
+{"command": "pueue_add", "arguments": {"command": "step2.sh", "after": [1]}}
+
+// Create a pipeline: build → test → deploy
+{"command": "pueue_add", "arguments": {"command": "build.sh", "label": "build"}}
+// After build completes (ID 2), run tests
+{"command": "pueue_add", "arguments": {"command": "test.sh", "after": [2]}}
+// After tests complete (ID 3), run deploy
+{"command": "pueue_add", "arguments": {"command": "deploy.sh", "after": [3]}}
+```
+
+### Parallel Task Execution
+
+Control how many tasks run simultaneously within a group:
+
+```json
+// Create a group with 4 parallel slots
+{"command": "pueue_group_add", "arguments": {"name": "workers", "parallel": 4}}
+
+// Or change parallel slots for an existing group
+{"command": "pueue_parallel", "arguments": {"group": "workers", "parallel": 8}}
+
+// Add tasks to the group - up to 4 will run concurrently
+{"command": "pueue_add", "arguments": {"command": "job1.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job2.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job3.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job4.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job5.sh", "group": "workers"}}
+// job5 will wait until one of job1-4 completes
+```
+
+### Combined Example: Sequential + Parallel
+
+```json
+// Step 1: Create a build group with 2 parallel slots
+{"command": "pueue_group_add", "arguments": {"name": "build", "parallel": 2}}
+
+// Step 2: Add parallel build tasks
+{"command": "pueue_add", "arguments": {"command": "build-module-a.sh", "group": "build", "label": "build-a"}}
+{"command": "pueue_add", "arguments": {"command": "build-module-b.sh", "group": "build", "label": "build-b"}}
+{"command": "pueue_add", "arguments": {"command": "build-module-c.sh", "group": "build", "label": "build-c"}}
+// build-a and build-b run in parallel, build-c waits
+
+// Step 3: Deploy only after all builds complete (IDs 10, 11, 12)
+{"command": "pueue_add", "arguments": {"command": "deploy.sh", "after": [10, 11, 12], "label": "deploy"}}
+```
 
 ## Structure
 
@@ -169,6 +262,14 @@ The following Pueue functionalities are exposed as MCP tools:
 
 - **`pueue_add`**: Enqueue a command to be executed.
   - Parameters: `command` (required), `label`, `group`, `delay`, `working_directory`, `immediate`, `stashed`, `priority`, `after`, `raw_args`
+  - **Delayed/Scheduled Execution**: Use the `delay` parameter to schedule tasks for later execution.
+    - **Relative time**: `"3h"` (3 hours), `"10min"` (10 minutes), `"+60"` (60 seconds from now)
+    - **Absolute time**: `"2024-12-31T23:59:59"`, `"18:00"`, `"5pm"`
+    - **Day-based**: `"tomorrow"`, `"monday"`, `"wednesday 10:30pm"`, `"next friday"`
+  - **Sequential Execution**: Use the `after` parameter to specify prerequisite task IDs for task dependencies
+- **`pueue_enqueue`**: Enqueue stashed tasks or set/update a delay timer for them.
+  - Parameters: `ids`, `all`, `group`, `delay`
+  - Use this to add a delay to already stashed tasks
 - **`pueue_remove`**: Remove tasks from the queue.
 - **`pueue_restart`**: Restart failed or successful tasks.
 - **`pueue_kill`**: Kill running tasks.
@@ -215,6 +316,91 @@ Once connected, you can ask Claude to:
 - "Run `npm install` in the background with label 'install'"
 - "Show the last 20 lines of log for task 5"
 - "Clean all successful tasks"
+- "Schedule a backup script to run at 2am tomorrow"
+- "Run a task after another task completes"
+
+## Scheduled & Delayed Tasks
+
+The `pueue_add` and `pueue_enqueue` tools support flexible scheduling via the `delay` parameter:
+
+### Delay Format Examples
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| Relative | `"3h"`, `"10min"`, `"+60"` | Execute after 3 hours, 10 minutes, or 60 seconds |
+| Absolute | `"2024-12-31T23:59:59"`, `"18:00"`, `"5pm"` | Execute at a specific time |
+| Day-based | `"tomorrow"`, `"monday"`, `"next friday"` | Execute on a specific day |
+| Combined | `"wednesday 10:30pm"`, `"tomorrow 14:00"` | Execute on a specific day at a specific time |
+
+### Usage Examples
+
+```json
+// Schedule a task to run in 3 hours
+{"command": "pueue_add", "arguments": {"command": "backup.sh", "delay": "3h"}}
+
+// Schedule a task for tonight at 8pm
+{"command": "pueue_add", "arguments": {"command": "report.py", "delay": "8pm"}}
+
+// Schedule a task for next Monday morning
+{"command": "pueue_add", "arguments": {"command": "weekly-sync.sh", "delay": "monday 9am"}}
+
+// Add a delay to already stashed tasks
+{"command": "pueue_enqueue", "arguments": {"ids": [5, 6], "delay": "2h"}}
+```
+
+## Sequential & Parallel Tasks
+
+### Sequential Task Execution (Dependencies)
+
+Use the `after` parameter in `pueue_add` to create task dependencies - a task will only start after specified tasks complete:
+
+```json
+// Run task B only after task A (ID 1) completes
+{"command": "pueue_add", "arguments": {"command": "step2.sh", "after": [1]}}
+
+// Create a pipeline: build → test → deploy
+{"command": "pueue_add", "arguments": {"command": "build.sh", "label": "build"}}
+// After build completes (ID 2), run tests
+{"command": "pueue_add", "arguments": {"command": "test.sh", "after": [2]}}
+// After tests complete (ID 3), run deploy
+{"command": "pueue_add", "arguments": {"command": "deploy.sh", "after": [3]}}
+```
+
+### Parallel Task Execution
+
+Control how many tasks run simultaneously within a group:
+
+```json
+// Create a group with 4 parallel slots
+{"command": "pueue_group_add", "arguments": {"name": "workers", "parallel": 4}}
+
+// Or change parallel slots for an existing group
+{"command": "pueue_parallel", "arguments": {"group": "workers", "parallel": 8}}
+
+// Add tasks to the group - up to 4 will run concurrently
+{"command": "pueue_add", "arguments": {"command": "job1.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job2.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job3.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job4.sh", "group": "workers"}}
+{"command": "pueue_add", "arguments": {"command": "job5.sh", "group": "workers"}}
+// job5 will wait until one of job1-4 completes
+```
+
+### Combined Example: Sequential + Parallel
+
+```json
+// Step 1: Create a build group with 2 parallel slots
+{"command": "pueue_group_add", "arguments": {"name": "build", "parallel": 2}}
+
+// Step 2: Add parallel build tasks
+{"command": "pueue_add", "arguments": {"command": "build-module-a.sh", "group": "build", "label": "build-a"}}
+{"command": "pueue_add", "arguments": {"command": "build-module-b.sh", "group": "build", "label": "build-b"}}
+{"command": "pueue_add", "arguments": {"command": "build-module-c.sh", "group": "build", "label": "build-c"}}
+// build-a and build-b run in parallel, build-c waits
+
+// Step 3: Deploy only after all builds complete (IDs 10, 11, 12)
+{"command": "pueue_add", "arguments": {"command": "deploy.sh", "after": [10, 11, 12], "label": "deploy"}}
+```
 
 ## Structure
 
